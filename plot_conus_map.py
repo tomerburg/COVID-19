@@ -31,7 +31,7 @@ background_image = {'setting': False,
 save_image = {'setting': False,
               'directory_path': "enter_full_directory_path_here"}
 
-#What to plot (confirmed, deaths, recovered, ongoing, daily)
+#What to plot (confirmed, deaths, recovered, active, daily)
 plot_type = "confirmed"
 
 #========================================================================================================
@@ -264,7 +264,7 @@ while plot_start_date <= plot_end_date:
         #Get state's case data for this date
         if name.lower() in cases.keys():
             idx = cases[name.lower()]['date'].index(plot_start_date)
-            if plot_type not in ['confirmed','deaths','recovered','ongoing','daily']: plot_type = 'confirmed'
+            if plot_type not in ['confirmed','deaths','recovered','active','daily']: plot_type = 'confirmed'
             case_number = cases[name.lower()][plot_type][idx]
             total_cases += case_number
         else:
@@ -338,11 +338,11 @@ while plot_start_date <= plot_end_date:
         'confirmed':'Case Count',
         'deaths':'Death Count',
         'recovered':'Recovered Cases',
-        'ongoing':'Ongoing Cases',
+        'active':'Active Cases',
         'daily':'New Daily Cases'
     }
     plt.title(f"CONUS States COVID-19 {plot_name.get(plot_type)}",fontweight='bold',fontsize=18,loc='left')
-    add_label = 'as of' if plot_type in ['ongoing','daily'] else 'through'
+    add_label = 'as of' if plot_type in ['active','daily'] else 'through'
     plt.title(f"Cases {add_label} {plot_start_date.strftime('%d %B %Y')}",fontweight='bold',fontsize=14,loc='right')
 
     plt.text(0.99,0.01,'Data from Johns Hopkins CSSE:\nhttps://github.com/CSSEGISandData/COVID-19',
