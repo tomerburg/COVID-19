@@ -39,7 +39,7 @@ plot_type = "confirmed"
 #========================================================================================================
 
 """
-COVID-19 case data is retrieved from John Hopkins CSSE:
+COVID-19 case data is retrieved from Johns Hopkins CSSE:
 https://github.com/CSSEGISandData/COVID-19
 """
 
@@ -47,7 +47,7 @@ https://github.com/CSSEGISandData/COVID-19
 try:
     cases
 except:
-    print("--> Reading in COVID-19 case data from John Hopkins CSSE")
+    print("--> Reading in COVID-19 case data from Johns Hopkins CSSE")
 
     #Construct list of dates with data available, through today
     start_date = dt.datetime(2020,1,22)
@@ -345,7 +345,7 @@ while plot_start_date <= plot_end_date:
     add_label = 'as of' if plot_type in ['ongoing','daily'] else 'through'
     plt.title(f"Cases {add_label} {plot_start_date.strftime('%d %B %Y')}",fontweight='bold',fontsize=14,loc='right')
 
-    plt.text(0.99,0.01,'Data from John Hopkins CSSE:\nhttps://github.com/CSSEGISandData/COVID-19',
+    plt.text(0.99,0.01,'Data from Johns Hopkins CSSE:\nhttps://github.com/CSSEGISandData/COVID-19',
              ha='right',va='bottom',transform=ax.transAxes,fontsize=11,color='white',fontweight='bold')
     
     dp_cases = cases['diamond princess'][plot_type][idx]
