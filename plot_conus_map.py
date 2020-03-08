@@ -17,22 +17,25 @@ from color_gradient import Gradient
 #========================================================================================================
 
 #Report date(s) to plot
-plot_start_date = dt.datetime(2020,1,22)
-plot_end_date = dt.datetime(2020,3,1)
+plot_start_date = dt.datetime(2020,3,7)
+plot_end_date = dt.datetime(2020,3,7)
 
 #Use blue marble background for the map. "directory_path" string is ignored if setting==False.
 # ** "directory_path" must be a folder with an image and an "images.json" file, in accordance with Cartopy's ax.background_img() function:
 # ** https://scitools.org.uk/cartopy/docs/v0.15/matplotlib/geoaxes.html#cartopy.mpl.geoaxes.GeoAxes.background_img
 # ** A Blue Marble image and directory are included in this repository.
 background_image = {'setting': False,
-                    'directory_path': "enter_full_directory_path_here"}
+                    'directory_path': "full_directory_path_here"}
 
 #Whether to save image or display. "directory_path" string is ignored if setting==False.
 save_image = {'setting': False,
-              'directory_path': "enter_full_directory_path_here"}
+              'directory_path': "full_directory_path_here"}
 
 #What to plot (confirmed, deaths, recovered, active, daily)
 plot_type = "confirmed"
+
+#Plot individual location dots?
+plot_dots = True
 
 #========================================================================================================
 # Get COVID-19 case data
@@ -54,11 +57,14 @@ except:
     iter_date = dt.datetime(2020,1,22)
     end_date = dt.datetime.today()
     dates = []
+    dates_sites = []
     while iter_date <= end_date:
         strdate = iter_date.strftime("%m-%d-%Y")
         url = f'https://raw.githubusercontent.com/CSSEGISandData/COVID-19/master/csse_covid_19_data/csse_covid_19_daily_reports/{strdate}.csv'
         request = requests.get(url)
-        if request.status_code == 200: dates.append(iter_date)
+        if request.status_code == 200:
+            dates.append(iter_date)
+            if iter_date >= dt.datetime(2020,3,1): dates_sites.append(iter_date)
         iter_date += dt.timedelta(hours=24)
 
     #US states list
@@ -119,7 +125,7 @@ except:
     #Create entry for each US state, along with Diamond Princess
     cases = {}
     inverse_state_abbr = {v: k for k, v in state_abbr.items()}
-    for key in ['diamond princess'] + [key.lower() for key in inverse_state_abbr.keys()]:
+    for key in ['diamond princess','grand princess'] + [key.lower() for key in inverse_state_abbr.keys()]:
         cases[key] = {'date':dates,
                         'confirmed':[0 for i in range(len(dates))],
                         'deaths':[0 for i in range(len(dates))],
@@ -127,6 +133,9 @@ except:
                         'active':[0 for i in range(len(dates))],
                         'daily':[0 for i in range(len(dates))]}
 
+    #Add individual location sites for plotting dots
+    cases_sites = {}
+    
     #Construct list of dates
     start_date = dates[0]
     end_date = dates[-1]
@@ -145,7 +154,7 @@ except:
         for _,row in df_us.iterrows():
 
             #Get state/province name
-            location  = row['Province/State']
+            location = row['Province/State']
 
             #Get index of date within list
             idx = dates.index(start_date)
@@ -165,6 +174,17 @@ except:
                     cases["diamond princess"]['daily'][idx] = np.nan
                 else:
                     cases["diamond princess"]['daily'][idx] = cases["diamond princess"]['confirmed'][idx] - cases["diamond princess"]['confirmed'][idx-1]
+            
+            #Handle Grand Princess cases separately
+            elif "Grand Princess" in location:
+                cases["grand princess"]['confirmed'][idx] += int(row['Confirmed'])
+                cases["grand princess"]['deaths'][idx] += int(row['Deaths'])
+                cases["grand princess"]['recovered'][idx] += int(row['Recovered'])
+                cases["grand princess"]['active'][idx] += int(row['Confirmed']) - int(row['Recovered']) - int(row['Deaths'])
+                if idx == 0:
+                    cases["grand princess"]['daily'][idx] = np.nan
+                else:
+                    cases["grand princess"]['daily'][idx] = cases["grand princess"]['confirmed'][idx] - cases["grand princess"]['confirmed'][idx-1]
                 
             #Otherwise, handle states
             else:
@@ -185,6 +205,28 @@ except:
                         cases[state.lower()]['daily'][idx] = np.nan
                     else:
                         cases[state.lower()]['daily'][idx] = cases[state.lower()]['confirmed'][idx] - cases[state.lower()]['confirmed'][idx-1]
+                
+                #Add individual sites
+                if start_date >= dt.datetime(2020,3,1):
+                    idx_sites = dates_sites.index(start_date)
+                    if location not in cases_sites.keys():
+                        cases_sites[location] = {'date':dates_sites,
+                            'confirmed':[0 for i in range(len(dates_sites))],
+                            'deaths':[0 for i in range(len(dates_sites))],
+                            'recovered':[0 for i in range(len(dates_sites))],
+                            'active':[0 for i in range(len(dates_sites))],
+                            'daily':[0 for i in range(len(dates_sites))],
+                            'latitude':(float(row['Latitude'])),
+                            'longitude':(float(row['Longitude']))}
+                    cases_sites[location]['confirmed'][idx_sites] = int(row['Confirmed'])
+                    cases_sites[location]['deaths'][idx_sites] = int(row['Deaths'])
+                    cases_sites[location]['recovered'][idx_sites] = int(row['Recovered'])
+                    cases_sites[location]['active'][idx_sites] = int(row['Confirmed']) - int(row['Recovered']) - int(row['Deaths'])
+                    if idx_sites == 0:
+                        cases_sites[location]['daily'][idx_sites] = np.nan
+                    else:
+                        cases_sites[location]['daily'][idx_sites] = cases_sites[location]['confirmed'][idx_sites] - cases_sites[location]['confirmed'][idx_sites-1]
+
 
         #Increment date by 1 day
         start_date += dt.timedelta(hours=24)
@@ -193,34 +235,44 @@ except:
 # Handle map projection & geography
 #========================================================================================================
 
+#Function for returning number within range
+def return_val(start_range,end_range,start_size,end_size,val):
+    frac = (val-start_range)/(end_range-start_range)
+    frac = (frac * (end_size-start_size)) + start_size
+    return frac
+
 #Create data colortable
 max_val = 0.0
-for key in [k for k in cases.keys() if k != "diamond princess"]:
-    max_val = cases[key][plot_type][-1] if cases[key][plot_type][-1] > max_val else max_val
+for key in [k for k in cases.keys()]:
+    for ptype in ['confirmed','deaths','recovered','active','daily']:
+        max_val = cases[key][ptype][-1] if cases[key][ptype][-1] > max_val else max_val
+if max_val < 40: max_val = 40
 
-if plot_type == 'confirmed':
-    if max_val < 40: max_val = 40
-else:
-    if max_val < 20: max_val = 20
 color_obj = Gradient([['#FFFF00',1.0],['#EE7B51',int(max_val*0.3)]],
                [['#EE7B51',int(max_val*0.3)],['#B53079',int(max_val*0.7)]],
                [['#B53079',int(max_val*0.7)],['#070092',int(max_val*1.2)]])
 
 #Create Cartopy projection
-lon1 = -99.0
-lat1 = 35.0
-slat = 35.0
-bound_n = 50.0
-bound_s = 21.5
-bound_w = -122.0
-bound_e = -72.5
-m = Map('LambertConformal',central_longitude=lon1,central_latitude=lat1,standard_parallels=[slat],res='h')
-proj = m.proj
+try:
+    m
+except:
+    lon1 = -99.0
+    lat1 = 35.0
+    slat = 35.0
+    bound_n = 50.0
+    bound_s = 21.5
+    bound_w = -122.0
+    bound_e = -72.5
+    m = Map('LambertConformal',central_longitude=lon1,central_latitude=lat1,standard_parallels=[slat],res='h')
+    proj = m.proj
 
 #Read in US states shapefile
-fname = r'cb_2018_us_state_500k/cb_2018_us_state_500k.shp'
-shp = Reader(fname)
-print("--> Read in US states shapefile")
+try:
+    shp
+except:
+    fname = r'cb_2018_us_state_500k/cb_2018_us_state_500k.shp'
+    shp = Reader(fname)
+    print("--> Read in US states shapefile")
 
 #Iterate through dates
 while plot_start_date <= plot_end_date:
@@ -320,6 +372,7 @@ while plot_start_date <= plot_end_date:
             transform = ccrs.PlateCarree()._as_mpl_transform(ax)
             x_tr, y_tr = state_transform.get(name)
             ncolor = 'k' if background_image['alpha'] == 1 else 'w'
+            if ncolor == 'k' and case_number > (max_val*0.8): ncolor = 'w'
             ax.annotate(case_str,
                         xy=(lon,lat), xycoords=transform,
                         xytext=(lon+x_tr,lat+y_tr), 
@@ -328,28 +381,55 @@ while plot_start_date <= plot_end_date:
                                         shrinkA=0, shrinkB=0,
                                         connectionstyle="arc3", 
                                         color=ncolor),
-                        transform=ccrs.PlateCarree())
+                        transform=ccrs.PlateCarree(), zorder=3)
         else:
             ax.text(lon, lat, case_str, color='k', fontsize=12,
-                    fontweight='bold', ha='center', va='center', transform=ccrs.PlateCarree())
+                    fontweight='bold', ha='center', va='center', transform=ccrs.PlateCarree(), zorder=3)
+
+    #Add dots for individual locations
+    if plot_dots == True:
+        if plot_start_date in dates_sites:
+
+            #Get maximum number of cases
+            max_val_site = 0.0
+            for key in [k for k in cases_sites.keys()]:
+                for ptype in ['confirmed','deaths','recovered','active','daily']:
+                    max_val_site = cases_sites[key][ptype][-1] if cases_sites[key][ptype][-1] > max_val_site else max_val_site
+            if max_val_site < 40: max_val_site = 40
+
+            #Iterate through every location
+            for site in cases_sites.keys():
+
+                idx_site = cases_sites[site]['date'].index(plot_start_date)
+                lat = cases_sites[site]['latitude']
+                lon = cases_sites[site]['longitude']
+                val = cases_sites[site][plot_type][idx_site]
+
+                if val > 0:
+                    ms_size = return_val(start_range=1, end_range=max_val_site, start_size=4, end_size=15, val=val)
+                    ax.plot(lon, lat, 'o', ms=ms_size, color='w', alpha=0.6, mec='k', mew=0.3, zorder=2, transform=ccrs.PlateCarree())
 
     #Add plot type and labels
     plot_name = {
-        'confirmed':'Case Count',
+        'confirmed':'Confirmed Cases',
         'deaths':'Death Count',
         'recovered':'Recovered Cases',
-        'active':'Active Cases',
+        'active':'Active Confirmed Cases',
         'daily':'New Daily Cases'
     }
     plt.title(f"CONUS States COVID-19 {plot_name.get(plot_type)}",fontweight='bold',fontsize=18,loc='left')
     add_label = 'as of' if plot_type in ['active','daily'] else 'through'
     plt.title(f"Cases {add_label} {plot_start_date.strftime('%d %B %Y')}",fontweight='bold',fontsize=14,loc='right')
 
+    #Label data source
     plt.text(0.99,0.01,'Data from Johns Hopkins CSSE:\nhttps://github.com/CSSEGISandData/COVID-19',
              ha='right',va='bottom',transform=ax.transAxes,fontsize=11,color='white',fontweight='bold')
     
+    #Label total number of cases
     dp_cases = cases['diamond princess'][plot_type][idx]
-    plt.text(0.01,0.01,f'Diamond Princess Cases: {dp_cases}\n\nTotal US Cases: {total_cases}\nTotal US Cases With Diamond Princess: {total_cases+dp_cases}',
+    gp_cases = cases['grand princess'][plot_type][idx]
+    other_cases = dp_cases + gp_cases
+    plt.text(0.01,0.01,f'Repatriated Cases: {other_cases}\n\nTotal US Cases: {total_cases}\nTotal US Cases (With Repatriated): {total_cases+other_cases}',
              ha='left',va='bottom',transform=ax.transAxes,fontsize=11,color='w',fontweight='bold',bbox={'facecolor':'k', 'alpha':0.4, 'boxstyle':'round'})
     
     #Save image?
