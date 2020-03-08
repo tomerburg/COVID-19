@@ -13,7 +13,7 @@ import matplotlib.dates as mdates
 
 #Whether to save image or display. "directory_path" string is ignored if setting==False.
 save_image = {'setting': False,
-              'directory_path': "C:/Users/Tomer/Documents/python/coronavirus/maps/images/"}
+              'directory_path': "full_directory_path_here"}
 
 #What to plot (confirmed, deaths, recovered, active, daily)
 plot_type = "confirmed"
@@ -85,13 +85,10 @@ except:
             #Get index of date within list
             idx = dates.index(start_date)
 
-            #Add case count to dict 
             cases[location.lower()]['confirmed'][idx] += int(row['Confirmed'])
             cases[location.lower()]['deaths'][idx] += int(row['Deaths'])
             cases[location.lower()]['recovered'][idx] += int(row['Recovered'])
             cases[location.lower()]['active'][idx] += int(row['Confirmed']) - int(row['Recovered']) - int(row['Deaths'])
-            
-            #Calculate daily cases
             if idx == 0:
                 cases[location.lower()]['daily'][idx] = np.nan
             elif location.lower() == 'mainland china' and strdate == '02-13-2020':
@@ -165,14 +162,18 @@ title_string = {
     'daily':'Daily COVID-19 New Cases',
 }
 add_title = "(Non-Mainland China)" if mainland_china == False else ""
-plt.title(f"{title_string.get(plot_type)} {add_title}",fontweight='bold')
+plt.title(f"{title_string.get(plot_type)} {add_title}",fontweight='bold',loc='left')
 plt.xlabel("Date",fontweight='bold')
 plt.ylabel("Cases",fontweight='bold')
 
 #Plot attribution
-add_text = "\n\n\"Active\" cases defined as:\n(confirmed total - recovered - deaths)" if plot_type == "active" else ""
-plt.text(0.27,0.98,f'Image by Tomer Burg\nData from Johns Hopkins CSSE\nCountries with {int(np.percentile(sorted_value,95))}+ total cases labeled with dots{add_text}',
-         ha='left',va='top',transform=ax.transAxes,fontsize=8)
+plt.title(f'Data from Johns Hopkins CSSE\nLocations with {int(np.percentile(sorted_value,95))}+ total cases labeled with dots',
+          loc='right',fontsize=8)
+if plot_type == "active":
+    plt.text(0.99,0.99,"\"Active\" cases = confirmed total - recovered - deaths",fontweight='bold',
+             ha='right',va='top',transform=ax.transAxes,fontsize=8)
+plt.text(0.27,0.98,"Top 20 locations plotted",
+             ha='left',va='top',transform=ax.transAxes,fontsize=8)
 
 #Show plot and close
 if save_image['setting'] == True:
