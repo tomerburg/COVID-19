@@ -26,7 +26,7 @@ save_image = {'setting': False,
 plot_type = "confirmed"
 
 #Include Mainland China?
-mainland_china = True
+mainland_china = False
 
 #Plot total numbers?
 plot_total = True
@@ -121,6 +121,7 @@ total_count = np.array([0.0 for i in cases['mainland china']['date']])
 total_count_row = np.array([0.0 for i in cases['mainland china']['date']])
 
 #Empty array
+data_annot = []
 data = []
 rows = []
 
@@ -144,6 +145,7 @@ for idx,(key,value) in enumerate(zip(sorted_keys,sorted_value)):
     idx_end = dates.index(plot_end_date)
 
     #Append to data
+    data_annot.append(['-' if i == 0 or np.isnan(i) == True else str(i) for i in cases[key][plot_type][idx_start:idx_end+1]])
     data.append(cases[key][plot_type][idx_start:idx_end+1])
 
     #Append location to row
@@ -155,6 +157,7 @@ columns = [i.strftime('%b\n%d') for i in dates][idx_start:idx_end+1]
 
 #Add total?
 if plot_total == True:
+    data_annot.insert(0,['-' if i == 0 or np.isnan(i) == True else str(int(i)) for i in total_count][idx_start:idx_end+1])
     data.insert(0,[0 if np.isnan(i) == True else int(i) for i in total_count][idx_start:idx_end+1])
     rows.insert(0,"World Total")
 
@@ -193,9 +196,9 @@ fig,ax = plt.subplots(figsize=(fig_width,16),dpi=150) #32,2
 data_df = pd.DataFrame(data,index=rows,columns=columns)
 
 #Plot seaborn heatmap
-ax = sns.heatmap(data_df, annot=True, xticklabels=True, yticklabels=True, cmap=cmap, linewidths=0.5, fmt="d",
+ax = sns.heatmap(data_df, xticklabels=True, yticklabels=True, cmap=cmap, linewidths=0.5,
                  cbar_kws = dict(use_gridspec=False,location="bottom",fraction=0.05, pad=0.008),
-                 annot_kws = dict(fontsize=12))
+                 annot_kws = dict(fontsize=12), annot=np.array(data_annot), fmt = '')
 
 #Format ticks
 ax.tick_params(right=True, top=True, labelright=True, labeltop=True,
