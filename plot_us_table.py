@@ -74,7 +74,7 @@ except:
         'CO':'Colorado',
         'CT':'Connecticut',
         'DE':'Delaware',
-        'DC':'District of Columbia',
+        'D.C.':'District of Columbia',
         'FL':'Florida',
         'GA':'Georgia',
         'HI':'Hawaii',
