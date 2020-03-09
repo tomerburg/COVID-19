@@ -170,7 +170,9 @@ except:
                 if idx == 0:
                     cases["diamond princess"]['daily'][idx] = np.nan
                 else:
-                    cases["diamond princess"]['daily'][idx] = cases["diamond princess"]['confirmed'][idx] - cases["diamond princess"]['confirmed'][idx-1]
+                    daily_change = cases["diamond princess"]['confirmed'][idx] - cases["diamond princess"]['confirmed'][idx-1]
+                    if daily_change < 0: daily_change = 0
+                    cases["diamond princess"]['daily'][idx] = daily_change
             
             #Handle Grand Princess cases separately
             elif "Grand Princess" in location:
@@ -181,7 +183,9 @@ except:
                 if idx == 0:
                     cases["grand princess"]['daily'][idx] = np.nan
                 else:
-                    cases["grand princess"]['daily'][idx] = cases["grand princess"]['confirmed'][idx] - cases["grand princess"]['confirmed'][idx-1]
+                    daily_change = cases["grand princess"]['confirmed'][idx] - cases["grand princess"]['confirmed'][idx-1]
+                    if daily_change < 0: daily_change = 0
+                    cases["grand princess"]['daily'][idx] = daily_change
                 
             #Otherwise, handle states
             else:
@@ -201,7 +205,9 @@ except:
                     if idx == 0:
                         cases[state.lower()]['daily'][idx] = np.nan
                     else:
-                        cases[state.lower()]['daily'][idx] = cases[state.lower()]['confirmed'][idx] - cases[state.lower()]['confirmed'][idx-1]
+                        daily_change = cases[state.lower()]['confirmed'][idx] - cases[state.lower()]['confirmed'][idx-1]
+                        if daily_change < 0: daily_change = 0
+                        cases[state.lower()]['daily'][idx] = daily_change
                 
                 #Add individual sites
                 if start_date >= dt.datetime(2020,3,1):
