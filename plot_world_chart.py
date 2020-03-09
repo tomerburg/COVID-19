@@ -161,7 +161,7 @@ title_string = {
     'active':'Daily COVID-19 Active Cases',
     'daily':'Daily COVID-19 New Cases',
 }
-add_title = "(Non-Mainland China)" if mainland_china == False else ""
+add_title = "\n(Non-Mainland China)" if mainland_china == False else ""
 plt.title(f"{title_string.get(plot_type)} {add_title}",fontweight='bold',loc='left')
 plt.xlabel("Date",fontweight='bold')
 plt.ylabel("Cases",fontweight='bold')
