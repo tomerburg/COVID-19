@@ -101,7 +101,9 @@ except:
             elif location.lower() == 'mainland china' and strdate == '02-13-2020':
                 cases[location.lower()]['daily'][idx] = np.nan
             else:
-                cases[location.lower()]['daily'][idx] = cases[location.lower()]['confirmed'][idx] - cases[location.lower()]['confirmed'][idx-1]
+                daily_change = cases[location.lower()]['confirmed'][idx] - cases[location.lower()]['confirmed'][idx-1]
+                if daily_change < 0: daily_change = 0
+                cases[location.lower()]['daily'][idx] = daily_change
 
         #Increment date by 1 day
         start_date += dt.timedelta(hours=24)
