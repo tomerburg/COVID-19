@@ -52,9 +52,7 @@ except:
 
     output = read_data.read_us()
     dates = output['dates']
-    dates_sites = output['dates_sites']
     cases = output['cases']
-    cases_sites = output['cases_sites']
 
 #========================================================================================================
 # Handle map projection & geography
