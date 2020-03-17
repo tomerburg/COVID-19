@@ -16,8 +16,8 @@ from color_gradient import Gradient
 #========================================================================================================
 
 #Report date(s) to plot
-plot_start_date = dt.datetime(2020,2,11)
-plot_end_date = dt.datetime(2020,3,11)
+plot_start_date = dt.datetime(2020,2,21)
+plot_end_date = dt.datetime(2020,3,16)
 
 #Whether to save image or display. "directory_path" string is ignored if setting==False.
 save_image = {'setting': False,
