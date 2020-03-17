@@ -16,8 +16,8 @@ from color_gradient import Gradient
 #========================================================================================================
 
 #Report date(s) to plot
-plot_start_date = dt.datetime(2020,2,10)
-plot_end_date = dt.datetime(2020,3,11)
+plot_start_date = dt.datetime(2020,2,20)
+plot_end_date = dt.datetime(2020,3,16)
 
 #Whether to save image or display. "directory_path" string is ignored if setting==False.
 save_image = {'setting': False,
@@ -52,9 +52,7 @@ except:
 
     output = read_data.read_us(negative_daily=False)
     dates = output['dates']
-    dates_sites = output['dates_sites']
     cases = output['cases']
-    cases_sites = output['cases_sites']
 
 #========================================================================================================
 # Create plot based on type
@@ -115,10 +113,10 @@ for line in data:
 if max_val < 40: max_val = 40
 
 color_obj = Gradient([['#EEEEEE',0.0],['#EEEEEE',0.9]],
-                     [['#FFFF00',0.9],['#EE7B51',int(max_val*0.3)]],
-                     [['#EE7B51',int(max_val*0.3)],['#B53079',int(max_val*0.6)]],
-                     [['#B53079',int(max_val*0.6)],['#070092',int(max_val*0.9)]],
-                     [['#070092',int(max_val*0.9)],['#000000',int(max_val*1.2)]])
+                     [['#FFFF00',0.9],['#EE7B51',int(max_val*0.08)]],
+                     [['#EE7B51',int(max_val*0.08)],['#B53079',int(max_val*0.3)]],
+                     [['#B53079',int(max_val*0.3)],['#070092',int(max_val*0.7)]],
+                     [['#070092',int(max_val*0.7)],['#000000',int(max_val*1.2)]])
 
 #Retrieve colormap
 clevs = np.append(np.array([0,0.95,1.0]),np.arange(2,max_val,1))
