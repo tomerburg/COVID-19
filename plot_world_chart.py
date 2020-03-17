@@ -26,6 +26,14 @@ mainland_china = True
 #Plot total numbers?
 plot_total = True
 
+#Additional settings
+settings = {
+    'log_y': False, #Use logarithmic y-axis?
+    'condensed_plot': True, #Condensed plot? (small dots and narrow lines)
+    'highlight_country': 'us', #Highlight country?
+    'number_of_countries': 20, #Limit number of countries plotted?
+}
+
 #========================================================================================================
 # Get COVID-19 case data
 #========================================================================================================
@@ -70,10 +78,15 @@ for idx,(key,value) in enumerate(zip(sorted_keys,sorted_value)):
     #Skip plotting if zero
     if value == 0: continue
     
+    #How many countries to plot?
+    lim = 19
+    if 'number_of_countries' in settings.keys():
+        lim = settings['number_of_countries'] - 1
+    if lim > 19: lim = 19
+    
     #Plot type
-    if idx > 19:
+    if idx > lim:
         pass
-        #plt.plot(cases[key]['date'],cases[key][plot_type],':',linewidth=0.5,color='k',zorder=1)
     else:
         mtype = '--'; zord=2
         if np.nanmax(cases[key][plot_type]) > np.percentile(sorted_value,95): mtype = '-o'; zord=3
@@ -82,9 +95,23 @@ for idx,(key,value) in enumerate(zip(sorted_keys,sorted_value)):
         #Handle US & UK titles
         loc = key.title()
         if key in ['us','uk']: loc = key.upper()
-
+        
+        #Handle narrow plot
+        kwargs = {}
+        linewidth=1.0
+        if 'condensed_plot' in settings.keys() and settings['condensed_plot'] == True:
+            mtype = '-o'
+            linewidth=0.5
+            kwargs = {'ms':2}
+            
+        #Highlight individual country
+        if 'highlight_country' in settings.keys() and settings['highlight_country'].lower() == key.lower():
+            linewidth = 2.0
+            if 'ms' in kwargs.keys(): kwargs['ms'] = 4
+        
         #Plot lines
-        plt.plot(cases[key]['date'],cases[key][plot_type],mtype,zorder=zord,label=f"{loc} ({cases[key][plot_type][-1]})")
+        plt.plot(cases[key]['date'],cases[key][plot_type],mtype,zorder=zord,linewidth=linewidth,
+                 label=f"{loc} ({cases[key][plot_type][-1]})",**kwargs)
 
 #Plot total count
 if plot_total == True:
@@ -94,7 +121,7 @@ if plot_total == True:
 #Format x-ticks
 ax.set_xticks(cases[key]['date'][::7])
 ax.set_xticklabels(cases[key]['date'][::7])
-ax.xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m-%d'))
+ax.xaxis.set_major_formatter(mdates.DateFormatter('%b\n%d'))
 
 #Plot grid and legend
 plt.grid()
@@ -113,7 +140,10 @@ plt.title(f"{title_string.get(plot_type)} {add_title}",fontweight='bold',loc='le
 plt.xlabel("Date",fontweight='bold')
 plt.ylabel("Cases",fontweight='bold')
 
-#plt.yscale('log')
+#Add logarithmic y-scale
+if 'log_y' in settings.keys() and settings['log_y'] == True:
+    plt.yscale('log')
+    plt.ylim(bottom=1)
 
 #Plot attribution
 plt.title(f'Data from Johns Hopkins CSSE\nLocations with {int(np.percentile(sorted_value,95))}+ total cases labeled with dots',
