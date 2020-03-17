@@ -19,7 +19,7 @@ from color_gradient import Gradient
 
 #Report date(s) to plot
 plot_start_date = dt.datetime(2020,2,26)
-plot_end_date = dt.datetime(2020,3,11)
+plot_end_date = dt.datetime(2020,3,16)
 
 #Use blue marble background for the map. "directory_path" string is ignored if setting==False.
 # ** "directory_path" must be a folder with an image and an "images.json" file, in accordance with Cartopy's ax.background_img() function:
@@ -32,11 +32,8 @@ background_image = {'setting': False,
 save_image = {'setting': False,
               'directory_path': "full_directory_path_here"}
 
-#What to plot (confirmed, deaths, recovered, active, daily)
+#What to plot (confirmed, confirmed_normalized, deaths, recovered, active, daily)
 plot_type = "confirmed"
-
-#Plot individual location dots?
-plot_dots = False
 
 #========================================================================================================
 # Get COVID-19 case data
@@ -71,14 +68,19 @@ def return_val(start_range,end_range,start_size,end_size,val):
 
 #Create data colortable
 max_val = 0.0
-for key in [k for k in cases.keys()]:
-    for ptype in ['confirmed','deaths','recovered','active','daily']:
-        max_val = cases[key][ptype][-1] if cases[key][ptype][-1] > max_val else max_val
-if max_val < 40: max_val = 40
+if plot_type == 'confirmed_normalized':
+    for key in [k for k in cases.keys() if k not in ['diamond princess','grand princess']]:
+        max_val = cases[key]['confirmed_normalized'][-1] if cases[key]['confirmed_normalized'][-1] > max_val else max_val
+    if max_val < 20: max_val = 20
+else:
+    for key in [k for k in cases.keys()]:
+        for ptype in ['confirmed','confirmed_normalized','deaths','recovered','active','daily']:
+            max_val = cases[key][ptype][-1] if cases[key][ptype][-1] > max_val else max_val
+    if max_val < 40: max_val = 40
 
-color_obj = Gradient([['#FFFF00',1.0],['#EE7B51',int(max_val*0.15)]],
-               [['#EE7B51',int(max_val*0.15)],['#B53079',int(max_val*0.65)]],
-               [['#B53079',int(max_val*0.65)],['#070092',int(max_val*1.2)]])
+color_obj = Gradient([['#FFFF00',1.0],['#EE7B51',round(max_val*0.15)]],
+               [['#EE7B51',round(max_val*0.15)],['#B53079',round(max_val*0.6)]],
+               [['#B53079',round(max_val*0.6)],['#070092',round(max_val*1.2)]])
 
 #Create Cartopy projection
 try:
@@ -144,7 +146,7 @@ while plot_start_date <= plot_end_date:
         #Get state's case data for this date
         if name.lower() in cases.keys():
             idx = cases[name.lower()]['date'].index(plot_start_date)
-            if plot_type not in ['confirmed','deaths','recovered','active','daily']: plot_type = 'confirmed'
+            if plot_type not in ['confirmed','confirmed_normalized','deaths','recovered','active','daily']: plot_type = 'confirmed'
             case_number = cases[name.lower()][plot_type][idx]
             total_cases += case_number
         else:
@@ -171,6 +173,7 @@ while plot_start_date <= plot_end_date:
 
         #Format case number as a string
         case_str = str(case_number)
+        if "." in case_str: case_str = '%0.1f'%(case_number)
         if case_number == 0: case_str = " - "
 
         #Label case number using state centroid
@@ -214,32 +217,10 @@ while plot_start_date <= plot_end_date:
             ax.text(lon, lat, case_str, color='k', fontsize=12,
                     fontweight='bold', ha='center', va='center', transform=ccrs.PlateCarree(), zorder=3)
 
-    #Add dots for individual locations
-    if plot_dots == True:
-        if plot_start_date in dates_sites:
-
-            #Get maximum number of cases
-            max_val_site = 0.0
-            for key in [k for k in cases_sites.keys()]:
-                for ptype in ['confirmed','deaths','recovered','active','daily']:
-                    max_val_site = cases_sites[key][ptype][-1] if cases_sites[key][ptype][-1] > max_val_site else max_val_site
-            if max_val_site < 40: max_val_site = 40
-
-            #Iterate through every location
-            for site in cases_sites.keys():
-
-                idx_site = cases_sites[site]['date'].index(plot_start_date)
-                lat = cases_sites[site]['latitude']
-                lon = cases_sites[site]['longitude']
-                val = cases_sites[site][plot_type][idx_site]
-
-                if val > 0:
-                    ms_size = return_val(start_range=1, end_range=max_val_site, start_size=4, end_size=15, val=val)
-                    ax.plot(lon, lat, 'o', ms=ms_size, color='w', alpha=0.6, mec='k', mew=0.3, zorder=2, transform=ccrs.PlateCarree())
-
     #Add plot type and labels
     plot_name = {
         'confirmed':'Confirmed Cases',
+        'confirmed_normalized':'Confirmed Cases\nPer 100,000 People',
         'deaths':'Death Count',
         'recovered':'Recovered Cases',
         'active':'Active Confirmed Cases',
@@ -254,12 +235,13 @@ while plot_start_date <= plot_end_date:
              ha='right',va='bottom',transform=ax.transAxes,fontsize=11,color='white',fontweight='bold')
     
     #Label total number of cases
-    dp_cases = cases['diamond princess'][plot_type][idx]
-    gp_cases = cases['grand princess'][plot_type][idx]
-    other_cases = dp_cases + gp_cases
-    plt.text(0.01,0.01,f'Repatriated Cases: {other_cases}\n\nTotal US Cases: {total_cases}\nTotal US Cases (With Repatriated): {total_cases+other_cases}',
-             ha='left',va='bottom',transform=ax.transAxes,fontsize=11,color='w',fontweight='bold',bbox={'facecolor':'k', 'alpha':0.4, 'boxstyle':'round'})
-    
+    if plot_type != 'confirmed_normalized':
+        dp_cases = cases['diamond princess'][plot_type][idx]
+        gp_cases = cases['grand princess'][plot_type][idx]
+        other_cases = dp_cases + gp_cases
+        plt.text(0.01,0.01,f'Repatriated Cases: {other_cases}\n\nTotal US Cases: {total_cases}\nTotal US Cases (With Repatriated): {total_cases+other_cases}',
+                 ha='left',va='bottom',transform=ax.transAxes,fontsize=11,color='w',fontweight='bold',bbox={'facecolor':'k', 'alpha':0.4, 'boxstyle':'round'})
+
     #Save image?
     if save_image['setting'] == True:
         savepath = os.path.join(save_image['directory_path'],f"{plot_type}_{plot_start_date.strftime('%Y%m%d')}.png")
