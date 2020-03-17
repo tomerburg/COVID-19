@@ -295,9 +295,7 @@ def read_us(negative_daily=True):
         start_date += dt.timedelta(hours=24)
     
     return {'dates':dates,
-            'dates_sites':dates_sites,
-            'cases':cases,
-            'cases_sites':cases_sites}
+            'cases':cases,}
 
 def read_world(negative_daily=True):
     
