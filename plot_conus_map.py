@@ -1,4 +1,5 @@
 #Import packages & other scripts
+import pickle
 import os, sys
 import requests
 import numpy as np
@@ -18,8 +19,9 @@ from color_gradient import Gradient
 #========================================================================================================
 
 #Report date(s) to plot
-plot_start_date = dt.datetime(2020,2,26)
-plot_end_date = dt.datetime(2020,3,16)
+plot_start_date = dt.datetime(2020,3,19)
+plot_end_date = dt.datetime(2020,3,19)
+plot_today_only = True #If true, overrides previous dates
 
 #Use blue marble background for the map. "directory_path" string is ignored if setting==False.
 # ** "directory_path" must be a folder with an image and an "images.json" file, in accordance with Cartopy's ax.background_img() function:
@@ -34,6 +36,12 @@ save_image = {'setting': False,
 
 #What to plot (confirmed, confirmed_normalized, deaths, recovered, active, daily)
 plot_type = "confirmed"
+
+#Whether to use data from Worldometers from March 18th onwards
+worldometers = True
+
+#Read from local file? (WARNING = ensure data sources are the same!)
+read_from_local = False
 
 #========================================================================================================
 # Get COVID-19 case data
@@ -50,9 +58,19 @@ try:
 except:
     print("--> Reading in COVID-19 case data from Johns Hopkins CSSE")
 
-    output = read_data.read_us()
-    dates = output['dates']
-    cases = output['cases']
+    if worldometers == True: include_repatriated = False
+    if read_from_local == True:
+        cases = pickle.load(open('cases_us.pickle','rb'))
+        dates = cases['dates']
+        del cases['dates']
+    else:
+        output = read_data.read_us(worldometers=worldometers)
+        dates = output['dates']
+        cases = output['cases']
+    
+    if plot_today_only == True:
+        plot_start_date = dates[-1]
+        plot_end_date = dates[-1]
 
 #========================================================================================================
 # Handle map projection & geography
@@ -229,15 +247,23 @@ while plot_start_date <= plot_end_date:
     plt.title(f"Cases {add_label} {plot_start_date.strftime('%d %B %Y')}",fontweight='bold',fontsize=14,loc='right')
 
     #Label data source
-    plt.text(0.99,0.01,'Data from Johns Hopkins CSSE:\nhttps://github.com/CSSEGISandData/COVID-19',
-             ha='right',va='bottom',transform=ax.transAxes,fontsize=11,color='white',fontweight='bold')
-    
+    if worldometers == False or worldometers == True and plot_start_date < dt.datetime(2020,3,18):
+        plt.text(0.99,0.01,'Data from Johns Hopkins CSSE:\nhttps://github.com/CSSEGISandData/COVID-19',
+                 ha='right',va='bottom',transform=ax.transAxes,fontsize=11,color='white',fontweight='bold')
+    else:
+        plt.text(0.99,0.01,'Data from Worldometers:\nhttps://www.worldometers.info/coronavirus/',
+                 ha='right',va='bottom',transform=ax.transAxes,fontsize=11,color='white',fontweight='bold')
+
     #Label total number of cases
     if plot_type != 'confirmed_normalized':
-        dp_cases = cases['diamond princess'][plot_type][idx]
-        gp_cases = cases['grand princess'][plot_type][idx]
-        other_cases = dp_cases + gp_cases
-        plt.text(0.01,0.01,f'Repatriated Cases: {other_cases}\n\nTotal US Cases: {total_cases}\nTotal US Cases (With Repatriated): {total_cases+other_cases}',
+        if worldometers == False:
+            dp_cases = cases['diamond princess'][plot_type][idx]
+            gp_cases = cases['grand princess'][plot_type][idx]
+            other_cases = dp_cases + gp_cases
+            title_string = f'Repatriated Cases: {other_cases}\n\nTotal US Cases: {total_cases}\nTotal US Cases (With Repatriated): {total_cases+other_cases}'
+        else:
+            title_string = f'Total US Cases: {total_cases}'
+        plt.text(0.01,0.01,title_string,
                  ha='left',va='bottom',transform=ax.transAxes,fontsize=11,color='w',fontweight='bold',bbox={'facecolor':'k', 'alpha':0.4, 'boxstyle':'round'})
 
     #Save image?

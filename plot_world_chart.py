@@ -1,4 +1,5 @@
 #Import packages & other scripts
+import pickle
 import os, sys
 import requests
 import numpy as np
@@ -17,7 +18,7 @@ import read_data
 save_image = {'setting': False,
               'directory_path': "full_directory_path_here"}
 
-#What to plot (confirmed, deaths, recovered, active, daily)
+#What to plot (confirmed, deaths, recovered, active, daily, daily_deaths)
 plot_type = "confirmed"
 
 #Include Mainland China?
@@ -26,13 +27,22 @@ mainland_china = True
 #Plot total numbers?
 plot_total = True
 
+#Plot confirmed vs. recoveries?
+plot_versus = False
+
 #Additional settings
 settings = {
     'log_y': False, #Use logarithmic y-axis?
     'condensed_plot': True, #Condensed plot? (small dots and narrow lines)
-    'highlight_country': 'us', #Highlight country?
+    'highlight_country': 'US', #Highlight country?
     'number_of_countries': 20, #Limit number of countries plotted?
 }
+
+#Whether to use data from Worldometers from March 18th onwards
+worldometers = True
+
+#Read from local file? (WARNING = ensure data sources are the same!)
+read_from_local = False
 
 #========================================================================================================
 # Get COVID-19 case data
@@ -48,9 +58,14 @@ try:
     cases
 except:
     
-    output = read_data.read_world()
-    dates = output['dates']
-    cases = output['cases']
+    if read_from_local == True:
+        cases = pickle.load(open('cases_world.pickle','rb'))
+        dates = cases['dates']
+        del cases['dates']
+    else:
+        output = read_data.read_world(worldometers=worldometers)
+        dates = output['dates']
+        cases = output['cases']
 
 #========================================================================================================
 # Create plot based on type
@@ -60,8 +75,9 @@ except:
 fig,ax = plt.subplots(figsize=(9,6),dpi=125)
 
 #Total count
-total_count = np.array([0.0 for i in cases['mainland china']['date']])
-total_count_row = np.array([0.0 for i in cases['mainland china']['date']])
+key_0 = [k for k in cases.keys()][0]
+total_count = np.array([0.0 for i in cases[key_0]['date']])
+total_count_row = np.array([0.0 for i in cases[key_0]['date']])
 
 #Iterate through every region
 sorted_keys = [y[1] for y in sorted([(np.nanmax(cases[x][plot_type]), x) for x in cases.keys()])][::-1]
@@ -73,8 +89,11 @@ for idx,(key,value) in enumerate(zip(sorted_keys,sorted_value)):
     
     #Total count
     total_count += np.array(cases[key][plot_type])
+    if plot_versus == True:
+        total_count_row += np.array(cases[key]['recovered'])
+        continue
     if key != 'mainland china': total_count_row += np.array(cases[key][plot_type])
-    
+        
     #Skip plotting if zero
     if value == 0: continue
     
@@ -107,7 +126,8 @@ for idx,(key,value) in enumerate(zip(sorted_keys,sorted_value)):
         #Highlight individual country
         if 'highlight_country' in settings.keys() and settings['highlight_country'].lower() == key.lower():
             linewidth = 2.0
-            if 'ms' in kwargs.keys(): kwargs['ms'] = 4
+            if 'ms' in kwargs.keys():
+                kwargs['ms'] = 4; zord=50; kwargs['color'] = 'k'
         
         #Plot lines
         plt.plot(cases[key]['date'],cases[key][plot_type],mtype,zorder=zord,linewidth=linewidth,
@@ -116,8 +136,11 @@ for idx,(key,value) in enumerate(zip(sorted_keys,sorted_value)):
 #Plot total count
 if plot_total == True:
     plt.plot(cases[key]['date'],total_count,':',zorder=50,label=f'Total ({int(total_count[-1])})',color='k',linewidth=2)
-    if mainland_china == True: plt.plot(cases[key]['date'],total_count_row,':',zorder=2,label=f'Total ROW ({int(total_count_row[-1])})',color='b',linewidth=2)
-
+    if plot_versus == True:
+        plt.plot(cases[key]['date'],total_count_row,':',zorder=2,label=f'Total Recoveries ({int(total_count_row[-1])})',color='b',linewidth=2)
+    elif mainland_china == True:
+        plt.plot(cases[key]['date'],total_count_row,':',zorder=2,label=f'Total ROW ({int(total_count_row[-1])})',color='b',linewidth=2)
+    
 #Format x-ticks
 ax.set_xticks(cases[key]['date'][::7])
 ax.set_xticklabels(cases[key]['date'][::7])
@@ -134,6 +157,7 @@ title_string = {
     'recovered':'Cumulative COVID-19 Recovered Cases',
     'active':'Daily COVID-19 Active Cases',
     'daily':'Daily COVID-19 New Cases',
+    'daily_deaths':'Daily COVID-19 New Deaths',
 }
 add_title = "\n(Non-Mainland China)" if mainland_china == False else ""
 plt.title(f"{title_string.get(plot_type)} {add_title}",fontweight='bold',loc='left')
@@ -145,14 +169,16 @@ if 'log_y' in settings.keys() and settings['log_y'] == True:
     plt.yscale('log')
     plt.ylim(bottom=1)
 
-#Plot attribution
-plt.title(f'Data from Johns Hopkins CSSE\nLocations with {int(np.percentile(sorted_value,95))}+ total cases labeled with dots',
-          loc='right',fontsize=8)
+#Add data source
+if worldometers == True:
+    plt.title(f"Data from Johns Hopkins CSSE\nWorldometers From 18 March onward",loc='right',fontsize=8)
+else:
+    plt.title(f"Data from Johns Hopkins CSSE",loc='right',fontsize=8)
+
 if plot_type == "active":
     plt.text(0.99,0.99,"\"Active\" cases = confirmed total - recovered - deaths",fontweight='bold',
              ha='right',va='top',transform=ax.transAxes,fontsize=8)
-plt.text(0.27,0.98,"Top 20 locations plotted",
-             ha='left',va='top',transform=ax.transAxes,fontsize=8)
+#plt.text(0.27,0.98,"Top 20 locations plotted",ha='left',va='top',transform=ax.transAxes,fontsize=8)
 
 #Show plot and close
 if save_image['setting'] == True:
