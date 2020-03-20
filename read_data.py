@@ -1,25 +1,34 @@
 #Import packages & other scripts
+import pickle
 import os, sys
 import requests
 import numpy as np
 import pandas as pd
 import datetime as dt
 
-def read_us(negative_daily=True):
+def read_us(negative_daily=True,worldometers=False,save=False):
 
     #Construct list of dates with data available, through today
     start_date = dt.datetime(2020,1,22)
     iter_date = dt.datetime(2020,1,22)
     end_date = dt.datetime.today()
     dates = []
-    dates_sites = []
     while iter_date <= end_date:
-        strdate = iter_date.strftime("%m-%d-%Y")
-        url = f'https://raw.githubusercontent.com/CSSEGISandData/COVID-19/master/csse_covid_19_data/csse_covid_19_daily_reports/{strdate}.csv'
-        request = requests.get(url)
-        if request.status_code == 200:
-            dates.append(iter_date)
-            if iter_date >= dt.datetime(2020,3,1): dates_sites.append(iter_date)
+        
+        #Read in CSV file without worldometer
+        if worldometers == False or worldometers == True and start_date < dt.datetime(2020,3,18):
+            strdate = iter_date.strftime("%m-%d-%Y")
+            url = f'https://raw.githubusercontent.com/CSSEGISandData/COVID-19/master/csse_covid_19_data/csse_covid_19_daily_reports/{strdate}.csv'
+            request = requests.get(url)
+            if request.status_code == 200:
+                dates.append(iter_date)
+        
+        #Use worldometers
+        else:
+            strdate = iter_date.strftime("%Y%m%d")
+            if os.path.isfile(f"data/worldometers/us_{strdate}.csv") == True: dates.append(iter_date)
+        
+        #Increment date
         iter_date += dt.timedelta(hours=24)
 
     #US states list
@@ -79,64 +88,11 @@ def read_us(negative_daily=True):
         'PR':'Puerto Rico',
     }
     
-    #US states list
-    state_populations = {
-        'Alabama':'4,903,185',
-        'Alaska':'731,545',
-        'Arizona':'7,278,717',
-        'Arkansas':'3,017,825',
-        'California':'39,512,223',
-        'Colorado':'5,758,736',
-        'Connecticut':'3,565,287',
-        'Delaware':'973,764',
-        'District Of Columbia':'705,749',
-        'Florida':'21,477,737',
-        'Georgia':'10,617,423',
-        'Hawaii':'1,415,872',
-        'Idaho':'1,787,147',
-        'Illinois':'12,671,821',
-        'Indiana':'6,732,219',
-        'Iowa':'3,155,070',
-        'Kansas':'2,913,314',
-        'Kentucky':'4,467,673',
-        'Louisiana':'4,648,794',
-        'Maine':'1,344,212',
-        'Maryland':'6,045,680',
-        'Massachusetts':'6,949,503',
-        'Michigan':'9,986,857',
-        'Minnesota':'5,639,632',
-        'Mississippi':'2,976,149',
-        'Missouri':'6,137,428',
-        'Montana':'1,068,778',
-        'Nebraska':'1,934,408',
-        'Nevada':'3,080,156',
-        'New Hampshire':'1,359,711',
-        'New Jersey':'8,882,190',
-        'New Mexico':'2,096,829',
-        'New York':'19,453,561',
-        'North Carolina':'10,488,084',
-        'North Dakota':'762,062',
-        'Ohio':'11,689,100',
-        'Oklahoma':'3,956,971',
-        'Oregon':'4,217,737',
-        'Pennsylvania':'12,801,989',
-        'Rhode Island':'1,059,361',
-        'South Carolina':'5,148,714',
-        'South Dakota':'884,659',
-        'Tennessee':'6,833,174',
-        'Texas':'28,995,881',
-        'Utah':'3,205,958',
-        'Vermont':'623,989',
-        'Virginia':'8,535,519',
-        'Washington':'7,614,893',
-        'West Virginia':'1,792,065',
-        'Wisconsin':'5,822,434',
-        'Wyoming':'578,759',
-        'Virgin Islands':'104,914',
-        'Puerto Rico':'3,193,694',
-        'Diamond Princess':'3000',
-        'Grand Princess':'3000',
-    }
+    #Read country population data
+    pop_df = pd.read_csv("data/2019_us_population.csv")
+    state_populations = {}
+    for location,row in pop_df.iterrows():
+        state_populations[row['State'].lower()] = int(row['Population'])
 
     #Create entry for each US state, along with Diamond Princess
     cases = {}
@@ -149,58 +105,72 @@ def read_us(negative_daily=True):
                         'recovered':[0 for i in range(len(dates))],
                         'active':[0 for i in range(len(dates))],
                         'daily':[0 for i in range(len(dates))]}
-
-    #Add individual location sites for plotting dots
-    cases_sites = {}
     
     #Construct list of dates
     start_date = dates[0]
     end_date = dates[-1]
     while start_date <= end_date:
 
-        #Read in CSV file
-        strdate = start_date.strftime("%m-%d-%Y")
-        url = f'https://raw.githubusercontent.com/CSSEGISandData/COVID-19/master/csse_covid_19_data/csse_covid_19_daily_reports/{strdate}.csv'
-        df = pd.read_csv(url)
-        df = df.fillna(0) #replace NaNs with zero
+        #Read in CSV file without worldometer
+        if worldometers == False or worldometers == True and start_date < dt.datetime(2020,3,18):
+            strdate = start_date.strftime("%m-%d-%Y")
+            url = f'https://raw.githubusercontent.com/CSSEGISandData/COVID-19/master/csse_covid_19_data/csse_covid_19_daily_reports/{strdate}.csv'
+            df = pd.read_csv(url)
+            df = df.fillna(0) #replace NaNs with zero
 
-        #Isolate cases to only those in US
-        df_us = df.loc[df["Country/Region"] == "US"]
+            #Isolate cases to only those in US
+            df_us = df.loc[df["Country/Region"] == "US"]
+        
+        #Read in CSV file with worldometer
+        else:
+            strdate = start_date.strftime("%Y%m%d")
+            df_us = pd.read_csv(f"data/worldometers/us_{strdate}.csv")
+            df_us = df_us.rename(columns={"State":"Province/State",
+                                    "Total Cases":"Confirmed",
+                                    "Total Deaths":"Deaths",
+                                    "Total Recovered":"Recovered"})
+            if 'puerto rico' in cases.keys(): del cases['puerto rico']
+            if 'virgin islands' in cases.keys(): del cases['virgin islands']
+            if 'diamond princess' in cases.keys(): del cases['diamond princess']
+            if 'grand princess' in cases.keys(): del cases['grand princess']
 
         #Construct dict of all states
         dict_iter = []
         dict_used = []
         for _,row in df_us.iterrows():
             entry = {}
+            
             dict_used.append(row['Province/State'].lower())
             entry['Province/State'] = row['Province/State']
             entry['Confirmed'] = row['Confirmed']
             entry['Deaths'] = row['Deaths']
             entry['Recovered'] = row['Recovered']
+            
+            #Account for incorrect entries
+            #Source: Live update from Johns Hopkins CSSE from 0108 UTC
+            if worldometers == False and start_date == dt.datetime(2020,3,18):
+                df_updated = pd.read_csv("data/20200318_us.csv")
+                dict_updated = {}
+                for location,row2 in df_updated.iterrows():
+                    dict_updated[row2['state'].lower()] = [row2['cases'],row2['deaths']]
+                
+                if row['Province/State'].lower() in dict_updated.keys():
+                    entry['Confirmed'] = dict_updated.get(row['Province/State'].lower())[0]
+                    entry['Deaths'] = dict_updated.get(row['Province/State'].lower())[1]
+                
             dict_iter.append(entry)
         
         #Account for state discontinuities
-        if start_date == dt.datetime(2020,3,14):
-            #Source: https://covidtracking.com/notes/
-            entry = {}
-            dict_used.append('alaska')
-            entry['Province/State'] = 'alaska'
-            entry['Confirmed'] = 1
-            entry['Deaths'] = 0
-            entry['Recovered'] = 0
-            dict_iter.append(entry)
-        
-        """
-        for key in [k for k in cases.keys() if k not in ['diamond princess','grand princess']]:
-            if key not in dict_used:
+        if worldometers == False or worldometers == True and start_date < dt.datetime(2020,3,18):
+            if start_date == dt.datetime(2020,3,14):
+                #Source: https://covidtracking.com/notes/
                 entry = {}
-                idx = dates.index(start_date)
-                entry['Province/State'] = key
-                entry['Confirmed'] = 0
+                dict_used.append('alaska')
+                entry['Province/State'] = 'alaska'
+                entry['Confirmed'] = 1
                 entry['Deaths'] = 0
                 entry['Recovered'] = 0
                 dict_iter.append(entry)
-        """
 
         #Iterate through every US case
         for row in dict_iter:
@@ -245,11 +215,14 @@ def read_us(negative_daily=True):
             #Otherwise, handle states
             else:
                 #Handle state abbreviation vs. full state name
-                if ',' in location:
-                    abbr = (location.split(",")[1]).replace(" ","")
-                    state = state_abbr.get(abbr)
+                if worldometers == False or worldometers == True and start_date < dt.datetime(2020,3,18):
+                    if ',' in location:
+                        abbr = (location.split(",")[1]).replace(" ","")
+                        state = state_abbr.get(abbr)
+                    else:
+                        state = str(location)
                 else:
-                    state = str(location)
+                    state = str(location).lower()
                    
                 #Virgin Islands handling
                 if location == "Virgin Islands, U.S.":
@@ -282,7 +255,7 @@ def read_us(negative_daily=True):
         for key in cases.keys():
             
             #Get state's population data
-            state_pop = int((state_populations.get(key.title())).replace(",",""))
+            state_pop = int(state_populations.get(key.lower()))
             
             #Get index of date within list
             idx = dates.index(start_date)
@@ -294,10 +267,15 @@ def read_us(negative_daily=True):
         #Increment date by 1 day
         start_date += dt.timedelta(hours=24)
     
+    if save == True:
+        cases['dates'] = dates
+        with open('cases_us.pickle', 'wb') as f:
+            pickle.dump(cases, f, pickle.HIGHEST_PROTOCOL)
+    
     return {'dates':dates,
             'cases':cases,}
 
-def read_world(negative_daily=True):
+def read_world(negative_daily=True,worldometers=False,save=False):
     
     #Construct list of dates with data available, through today
     start_date = dt.datetime(2020,1,22)
@@ -305,62 +283,114 @@ def read_world(negative_daily=True):
     end_date = dt.datetime.today()
     dates = []
     while iter_date <= end_date:
-        strdate = iter_date.strftime("%m-%d-%Y")
-        url = f'https://raw.githubusercontent.com/CSSEGISandData/COVID-19/master/csse_covid_19_data/csse_covid_19_daily_reports/{strdate}.csv'
-        request = requests.get(url)
-        if request.status_code == 200: dates.append(iter_date)
+        
+        #Don't use worldometers
+        if worldometers == False or worldometers == True and iter_date < dt.datetime(2020,3,18):
+            strdate = iter_date.strftime("%m-%d-%Y")
+            url = f'https://raw.githubusercontent.com/CSSEGISandData/COVID-19/master/csse_covid_19_data/csse_covid_19_daily_reports/{strdate}.csv'
+            request = requests.get(url)
+            if request.status_code == 200: dates.append(iter_date)
+        
+        #Use worldometers
+        else:
+            strdate = iter_date.strftime("%Y%m%d")
+            if os.path.isfile(f"data/worldometers/world_{strdate}.csv") == True: dates.append(iter_date)
+        
+        #Increment date
         iter_date += dt.timedelta(hours=24)
 
     #Create entry for each US state, along with Diamond Princess
     cases = {}
+    
+    #Read country population data
+    pop_df = pd.read_csv("data/2019_world_population.csv")
+    population = {}
+    for location,row in pop_df.iterrows():
+        population[row['Country'].lower()] = row['Population']
 
     #Construct list of dates
     start_date = dates[0]
     end_date = dates[-1]
     while start_date <= end_date:
 
-        #Read in CSV file
-        strdate = start_date.strftime("%m-%d-%Y")
-        url = f'https://raw.githubusercontent.com/CSSEGISandData/COVID-19/master/csse_covid_19_data/csse_covid_19_daily_reports/{strdate}.csv'
-        df = pd.read_csv(url)
-        df = df.fillna(0) #replace NaNs with zero
-
-        #sum by country
-        cols = (df.columns).tolist()
-        if 'Last Update' in cols: df = df.drop(columns=['Last Update'])
-        if 'Latitude' in cols: df = df.drop(columns=['Latitude'])
-        if 'Longitude' in cols: df = df.drop(columns=['Longitude'])
-        df = df.groupby('Country/Region').sum()
+        #Read in CSV file without worldometer
+        if worldometers == False or worldometers == True and start_date < dt.datetime(2020,3,18):
+            strdate = start_date.strftime("%m-%d-%Y")
+            url = f'https://raw.githubusercontent.com/CSSEGISandData/COVID-19/master/csse_covid_19_data/csse_covid_19_daily_reports/{strdate}.csv'
+            df = pd.read_csv(url)
+            df = df.fillna(0) #replace NaNs with zero
+            
+            #sum by country
+            cols = (df.columns).tolist()
+            if 'Last Update' in cols: df = df.drop(columns=['Last Update'])
+            if 'Latitude' in cols: df = df.drop(columns=['Latitude'])
+            if 'Longitude' in cols: df = df.drop(columns=['Longitude'])
+            df = df.groupby('Country/Region').sum()
+        
+        #Read in CSV file with worldometer
+        else:
+            strdate = start_date.strftime("%Y%m%d")
+            df = pd.read_csv(f"data/worldometers/world_{strdate}.csv")
+            df = df.rename(columns={"State":"Country/Region",
+                                    "Total Cases":"Confirmed",
+                                    "Total Deaths":"Deaths",
+                                    "Total Recovered":"Recovered"})
 
         #Iterate through every country
         for location,row in df.iterrows():
             
             #Fix for country name changes
-            if location == 'Iran (Islamic Republic of)':
-                location = "Iran"
-            elif location in ['Republic of Korea','Korea, South']:
-                location = "South Korea"
-            elif location == 'Cruise Ship':
-                location = "Others"
-            elif location == 'China':
-                location = "Mainland China"
-            elif location == 'United Kingdom':
-                location = "UK"
-            elif location == 'occupied Palestinian territory':
-                location = "Palestine"
-            elif location in ['Taiwan*','Taipei and environs']:
-                location = "Taiwan"
-            elif location in ['Czechia']:
-                location = "Czech Republic"
+            if worldometers == False or worldometers == True and start_date < dt.datetime(2020,3,18):
+                if location == 'Iran (Islamic Republic of)':
+                    location = "Iran"
+                elif location in ['Republic of Korea','Korea, South']:
+                    location = "South Korea"
+                elif location == 'Cruise Ship':
+                    location = "Others"
+                elif location == 'China':
+                    location = "Mainland China"
+                elif location == 'United Kingdom':
+                    location = "UK"
+                elif location == 'occupied Palestinian territory':
+                    location = "Palestine"
+                elif location in ['Taiwan*','Taipei and environs']:
+                    location = "Taiwan"
+                elif location in ['Czechia']:
+                    location = "Czech Republic"
+                elif location in ['Hong Kong SAR']:
+                    location = "Hong Kong"
+                elif location in ['Viet Nam']:
+                    location = "Vietnam"
+                elif location == " Azerbaijan":
+                    location = "Azerbaijan"
+                elif location == "Republic of Ireland":
+                    location = "Ireland"
+                elif location == "Russian Federation":
+                    location = "Russia"
+            
+            #Change country names for worldometers data
+            else:
+                swap_locs = {
+                    "China":"Mainland China",
+                    "USA":"US",
+                    "S. Korea":"South Korea",
+                    "Diamond Princess":"Others",
+                    "Czechia":"Czech Republic",
+                    "UAE":"United Arab Emirates",
+                }
+                location = row['Country/Region']
+                if location in swap_locs.keys(): location = swap_locs.get(location)
 
             #Add entry for this region if previously non-existent
             if location.lower() not in cases.keys():
                 cases[location.lower()] = {'date':dates,
                         'confirmed':[0 for i in range(len(dates))],
+                        'confirmed_normalized':[0 for i in range(len(dates))],
                         'deaths':[0 for i in range(len(dates))],
                         'recovered':[0 for i in range(len(dates))],
                         'active':[0 for i in range(len(dates))],
-                        'daily':[0 for i in range(len(dates))]}
+                        'daily':[0 for i in range(len(dates))],
+                        'daily_deaths':[0 for i in range(len(dates))]}
 
             #Get index of date within list
             idx = dates.index(start_date)
@@ -386,6 +416,11 @@ def read_world(negative_daily=True):
                     row['Confirmed'] = 2745
                     row['Deaths'] = 6
                     row['Recovered'] = 25
+            if start_date == dt.datetime(2020,3,18) and worldometers == False:
+                if location.lower() == 'spain':
+                    row['Confirmed'] = 14769
+                if location.lower() == 'us':
+                    row['Confirmed'] = 9241
 
             cases[location.lower()]['confirmed'][idx] += int(row['Confirmed'])
             cases[location.lower()]['deaths'][idx] += int(row['Deaths'])
@@ -393,16 +428,47 @@ def read_world(negative_daily=True):
             cases[location.lower()]['active'][idx] += int(row['Confirmed']) - int(row['Recovered']) - int(row['Deaths'])
             if idx == 0:
                 cases[location.lower()]['daily'][idx] = np.nan
+                cases[location.lower()]['daily_deaths'][idx] = np.nan
             elif location.lower() == 'mainland china' and strdate == '02-13-2020':
                 cases[location.lower()]['daily'][idx] = np.nan
+                cases[location.lower()]['daily_deaths'][idx] = np.nan
             else:
                 daily_change = cases[location.lower()]['confirmed'][idx] - cases[location.lower()]['confirmed'][idx-1]
                 if negative_daily == False and daily_change < 0: daily_change = 0
-                cases[location.lower()]['daily'][idx] = daily_change
+                cases[location.lower()]['daily_deaths'][idx] = daily_change
+                
+                daily_change = cases[location.lower()]['deaths'][idx] - cases[location.lower()]['deaths'][idx-1]
+                if negative_daily == False and daily_change < 0: daily_change = 0
+                cases[location.lower()]['daily_deaths'][idx] = daily_change
+                
+        #Normalize count by population
+        for key in cases.keys():
+            
+            #Get index of date within list
+            idx = dates.index(start_date)
+            
+            #If population data can be found for this country:
+            if key.lower() in population.keys():
+                
+                #Get country population data
+                country_pop = population.get(key.lower())
+                
+                #Add case count per 100,000 people
+                case_count = cases[key]['confirmed'][idx]
+                cases[key]['confirmed_normalized'][idx] = (float(case_count) / float(country_pop)) * 100000
+            
+            else:
+                
+                #Otherwise, add nan
+                cases[key]['confirmed_normalized'][idx] = 0.0
 
         #Increment date by 1 day
         start_date += dt.timedelta(hours=24)
     
+    if save == True:
+        cases['dates'] = dates
+        with open('cases_world.pickle', 'wb') as f:
+            pickle.dump(cases, f, pickle.HIGHEST_PROTOCOL)
     
     return {'dates':dates,
             'cases':cases}

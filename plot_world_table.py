@@ -1,4 +1,5 @@
 #Import packages & other scripts
+import pickle
 import os, sys
 import requests
 import numpy as np
@@ -17,20 +18,30 @@ from color_gradient import Gradient
 
 #Report date(s) to plot
 plot_start_date = dt.datetime(2020,2,21)
-plot_end_date = dt.datetime(2020,3,16)
+plot_end_date = dt.datetime(2020,3,19)
+plot_end_today = True #If true, overrides plot_end_date
 
 #Whether to save image or display. "directory_path" string is ignored if setting==False.
 save_image = {'setting': False,
               'directory_path': "full_directory_path_here"}
 
-#What to plot (confirmed, deaths, recovered, active, daily)
+#What to plot (confirmed, confirmed_normalized, deaths, recovered, active, daily, daily_deaths)
 plot_type = "confirmed"
 
 #Include Mainland China?
-mainland_china = False
+mainland_china = True
 
 #Plot total numbers?
 plot_total = True
+
+#Substitute US total for individual states?
+us_states = True
+
+#Whether to use data from Worldometers from March 18th onwards
+worldometers = True
+
+#Read from local file? (WARNING = ensure data sources are the same!)
+read_from_local = False
 
 #========================================================================================================
 # Get COVID-19 case data
@@ -43,12 +54,30 @@ https://github.com/CSSEGISandData/COVID-19
 
 #Avoid re-reading case data if it's already stored in memory
 try:
-    cases
+    cases2
 except:
     
-    output = read_data.read_world(negative_daily=False)
-    dates = output['dates']
-    cases = output['cases']
+    if read_from_local == True:
+        cases = pickle.load(open('cases_world.pickle','rb'))
+        dates = cases['dates']
+        del cases['dates']
+    else:
+        output = read_data.read_world(negative_daily=False,worldometers=worldometers)
+        dates = output['dates']
+        cases = output['cases']
+    
+    if plot_end_today == True: plot_end_date = dates[-1]
+    
+    #Substitute US for states
+    if us_states == True:
+        del cases['us']
+        for case in cases.keys():
+            cases[case]['us'] = False
+        output_us = read_data.read_us(negative_daily=False)
+        cases_us = output_us['cases']
+        for case in cases_us.keys():
+            cases_us[case]['us'] = True
+        cases.update(cases_us)
 
 #========================================================================================================
 # Create plot based on type
@@ -74,26 +103,30 @@ sorted_keys = [y[1] for y in sorted([(cases[x][plot_type][-1], x) for x in cases
 sorted_value = [y[0] for y in sorted([(cases[x][plot_type][-1], x) for x in cases.keys()])][::-1]
 for idx,(key,value) in enumerate(zip(sorted_keys,sorted_value)):
 
-    #Only plot the first 30 locations
-    if idx > 40: continue
-
     #Special handling for Diamond Princess
     if mainland_china == False and key == 'mainland china': continue
 
     #Total count
     total_count += np.array(cases[key][plot_type])
     if key != 'mainland china': total_count_row += np.array(cases[key][plot_type])
+    
+    #Only plot the first 30 locations
+    if idx > 40: continue
 
     #Get start and end indices
     idx_start = dates.index(plot_start_date)
     idx_end = dates.index(plot_end_date)
 
     #Append to data
-    data_annot.append(['-' if i == 0 or np.isnan(i) == True else str(i) for i in cases[key][plot_type][idx_start:idx_end+1]])
+    if plot_type == 'confirmed_normalized':
+        data_annot.append(['-' if i == 0 or np.isnan(i) == True else "%0.1f"%(i) for i in cases[key][plot_type][idx_start:idx_end+1]])
+    else:
+        data_annot.append(['-' if i == 0 or np.isnan(i) == True else str(i) for i in cases[key][plot_type][idx_start:idx_end+1]])
     data.append(cases[key][plot_type][idx_start:idx_end+1])
 
     #Append location to row
     name = key.upper() if key in ['uk','us'] else key.title()
+    if us_states == True and cases[key]['us'] == True: name = r"$\bf{" + name + "}$"
     rows.append(name)
 
 #Add column and row labels
@@ -101,7 +134,10 @@ columns = [i.strftime('%b\n%d') for i in dates][idx_start:idx_end+1]
 
 #Add total?
 if plot_total == True:
-    data_annot.insert(0,['-' if i == 0 or np.isnan(i) == True else str(int(i)) for i in total_count][idx_start:idx_end+1])
+    if plot_type == 'confirmed_normalized':
+        data_annot.insert(0,['-' if i == 0 or np.isnan(i) == True else "%0.1f"%(i) for i in total_count][idx_start:idx_end+1])
+    else:
+        data_annot.insert(0,['-' if i == 0 or np.isnan(i) == True else str(int(i)) for i in total_count][idx_start:idx_end+1])
     data.insert(0,[0 if np.isnan(i) == True else int(i) for i in total_count][idx_start:idx_end+1])
     rows.insert(0,"World Total")
 
@@ -156,14 +192,21 @@ if plot_total == True:
 #Plot title
 title_string = {
     'confirmed':'Cumulative COVID-19 Confirmed Cases',
+    'confirmed_normalized': 'Cumulative COVID-19 Confirmed Cases Per 100,000 People',
     'deaths':'Cumulative COVID-19 Deaths',
     'recovered':'Cumulative COVID-19 Recovered Cases',
     'active':'Daily COVID-19 Active Cases',
     'daily':'Daily COVID-19 New Cases',
+    'daily_deaths':'Daily COVID-19 New Deaths',
 }
 add_title = "(Non-Mainland China)" if mainland_china == False else ""
 plt.title(f"{title_string.get(plot_type)} {add_title}",fontweight='bold',loc='left',fontsize=16, pad=50)
-plt.title(f"Data from Johns Hopkins CSSE",loc='right',fontsize=12, pad=50, color='blue')
+
+#Add data source
+if worldometers == True:
+    plt.title(f"Data from Johns Hopkins CSSE\nWorldometers From 18 March onward",loc='right',fontsize=10, pad=50, color='blue')
+else:
+    plt.title(f"Data from Johns Hopkins CSSE",loc='right',fontsize=10, pad=50, color='blue')
 
 #Show plot and close
 if save_image['setting'] == True:

@@ -1,4 +1,5 @@
 #Import packages & other scripts
+import pickle
 import os, sys
 import requests
 import numpy as np
@@ -18,8 +19,9 @@ from color_gradient import Gradient
 #========================================================================================================
 
 #Report date(s) to plot
-plot_start_date = dt.datetime(2020,2,26)
-plot_end_date = dt.datetime(2020,3,16)
+plot_start_date = dt.datetime(2020,3,19)
+plot_end_date = dt.datetime(2020,3,19)
+plot_today_only = True #If true, overrides previous dates
 
 #Use blue marble background for the map. "directory_path" string is ignored if setting==False.
 # ** "directory_path" must be a folder with an image and an "images.json" file, in accordance with Cartopy's ax.background_img() function:
@@ -34,6 +36,12 @@ save_image = {'setting': False,
 
 #What to plot (confirmed, confirmed_normalized, deaths, recovered, active, daily)
 plot_type = "confirmed"
+
+#Whether to use data from Worldometers from March 18th onwards
+worldometers = True
+
+#Read from local file? (WARNING = ensure data sources are the same!)
+read_from_local = False
 
 #========================================================================================================
 # Get COVID-19 case data
@@ -50,9 +58,19 @@ try:
 except:
     print("--> Reading in COVID-19 case data from Johns Hopkins CSSE")
 
-    output = read_data.read_us()
-    dates = output['dates']
-    cases = output['cases']
+    if worldometers == True: include_repatriated = False
+    if read_from_local == True:
+        cases = pickle.load(open('cases_us.pickle','rb'))
+        dates = cases['dates']
+        del cases['dates']
+    else:
+        output = read_data.read_us(worldometers=worldometers)
+        dates = output['dates']
+        cases = output['cases']
+    
+    if plot_today_only == True:
+        plot_start_date = dates[-1]
+        plot_end_date = dates[-1]
 
 #========================================================================================================
 # Handle map projection & geography

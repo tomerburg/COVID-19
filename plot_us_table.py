@@ -1,4 +1,5 @@
 #Import packages & other scripts
+import pickle
 import os, sys
 import requests
 import numpy as np
@@ -17,20 +18,27 @@ from color_gradient import Gradient
 
 #Report date(s) to plot
 plot_start_date = dt.datetime(2020,2,20)
-plot_end_date = dt.datetime(2020,3,16)
+plot_end_date = dt.datetime(2020,3,19)
+plot_end_today = True #If true, overrides plot_end_date
 
 #Whether to save image or display. "directory_path" string is ignored if setting==False.
 save_image = {'setting': False,
               'directory_path': "full_directory_path_here"}
 
 #What to plot (confirmed, deaths, recovered, active, daily)
-plot_type = "confirmed"
+plot_type = "deaths"
 
 #Include repatriated cases (e.g., cruises)?
-include_repatriated = False
+include_repatriated = True
 
 #Plot total numbers?
 plot_total = True
+
+#Whether to use data from Worldometers from March 18th onwards
+worldometers = True
+
+#Read from local file? (WARNING = ensure data sources are the same!)
+read_from_local = False
 
 #========================================================================================================
 # Get COVID-19 case data
@@ -50,9 +58,17 @@ try:
 except:
     print("--> Reading in COVID-19 case data from Johns Hopkins CSSE")
 
-    output = read_data.read_us(negative_daily=False)
-    dates = output['dates']
-    cases = output['cases']
+    if worldometers == True: include_repatriated = False
+    if read_from_local == True:
+        cases = pickle.load(open('cases_us.pickle','rb'))
+        dates = cases['dates']
+        del cases['dates']
+    else:
+        output = read_data.read_us(negative_daily=False,worldometers=worldometers)
+        dates = output['dates']
+        cases = output['cases']
+    
+    if plot_end_today == True: plot_end_date = dates[-1]
 
 #========================================================================================================
 # Create plot based on type
@@ -65,8 +81,8 @@ def return_val(start_range,end_range,start_size,end_size,val):
     return frac
 
 #Total count
-total_count = np.array([0.0 for i in cases['diamond princess']['date']])
-total_count_row = np.array([0.0 for i in cases['diamond princess']['date']])
+total_count = np.array([0.0 for i in cases['new york']['date']])
+total_count_row = np.array([0.0 for i in cases['new york']['date']])
 
 #Empty array
 data_annot = []
@@ -164,7 +180,12 @@ title_string = {
 }
 add_title = "(Non-Repatriated)" if include_repatriated == False else ""
 plt.title(f"{title_string.get(plot_type)} {add_title}",fontweight='bold',loc='left',fontsize=14, pad=50)
-plt.title(f"Data from Johns Hopkins CSSE",loc='right',fontsize=10, pad=50, color='blue')
+
+#Add data source
+if worldometers == True:
+    plt.title(f"Data from Johns Hopkins CSSE\nWorldometers From 18 March onward",loc='right',fontsize=10, pad=50, color='blue')
+else:
+    plt.title(f"Data from Johns Hopkins CSSE",loc='right',fontsize=10, pad=50, color='blue')
 
 #Show plot and close
 if save_image['setting'] == True:
