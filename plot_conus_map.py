@@ -247,15 +247,23 @@ while plot_start_date <= plot_end_date:
     plt.title(f"Cases {add_label} {plot_start_date.strftime('%d %B %Y')}",fontweight='bold',fontsize=14,loc='right')
 
     #Label data source
-    plt.text(0.99,0.01,'Data from Johns Hopkins CSSE:\nhttps://github.com/CSSEGISandData/COVID-19',
-             ha='right',va='bottom',transform=ax.transAxes,fontsize=11,color='white',fontweight='bold')
-    
+    if worldometers == False or worldometers == True and plot_start_date < dt.datetime(2020,3,18):
+        plt.text(0.99,0.01,'Data from Johns Hopkins CSSE:\nhttps://github.com/CSSEGISandData/COVID-19',
+                 ha='right',va='bottom',transform=ax.transAxes,fontsize=11,color='white',fontweight='bold')
+    else:
+        plt.text(0.99,0.01,'Data from Worldometers:\nhttps://www.worldometers.info/coronavirus/',
+                 ha='right',va='bottom',transform=ax.transAxes,fontsize=11,color='white',fontweight='bold')
+
     #Label total number of cases
     if plot_type != 'confirmed_normalized':
-        dp_cases = cases['diamond princess'][plot_type][idx]
-        gp_cases = cases['grand princess'][plot_type][idx]
-        other_cases = dp_cases + gp_cases
-        plt.text(0.01,0.01,f'Repatriated Cases: {other_cases}\n\nTotal US Cases: {total_cases}\nTotal US Cases (With Repatriated): {total_cases+other_cases}',
+        if worldometers == False:
+            dp_cases = cases['diamond princess'][plot_type][idx]
+            gp_cases = cases['grand princess'][plot_type][idx]
+            other_cases = dp_cases + gp_cases
+            title_string = f'Repatriated Cases: {other_cases}\n\nTotal US Cases: {total_cases}\nTotal US Cases (With Repatriated): {total_cases+other_cases}'
+        else:
+            title_string = f'Total US Cases: {total_cases}'
+        plt.text(0.01,0.01,title_string,
                  ha='left',va='bottom',transform=ax.transAxes,fontsize=11,color='w',fontweight='bold',bbox={'facecolor':'k', 'alpha':0.4, 'boxstyle':'round'})
 
     #Save image?
